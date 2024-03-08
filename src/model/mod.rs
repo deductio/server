@@ -6,9 +6,7 @@ use rocket_db_pools::diesel::PgPool;
 pub struct Db(PgPool);
 
 pub mod knowledge_graph;
-pub mod resource;
 pub mod topic;
 
 pub use crate::model::knowledge_graph::KnowledgeGraph;
-pub use crate::model::resource::Resource;
 pub use crate::model::topic::Topic;

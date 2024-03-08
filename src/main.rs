@@ -23,7 +23,7 @@ fn rocket() -> _ {
 
     rocket::build()
         .mount("/", routes![scrub])
-        .mount("/graph", routes![routes::get_graph, routes::get_topic_resources])
+        .mount("/graph", routes![routes::get_graph])
         .attach(Db::init())
 }
 

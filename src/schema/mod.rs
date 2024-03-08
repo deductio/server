@@ -13,17 +13,9 @@ diesel::table! {
     progress (user_id, graph) {
         user_id -> Text,
         graph -> Uuid,
-        progress -> Array<Nullable<Int4>>,
-    }
-}
 
-diesel::table! {
-    resources (id) {
-        title -> Text,
-        description -> Text,
-        topic_id -> Int8,
-        link -> Nullable<Text>,
-        id -> Int8,
+        #[sql_name = "progress"]
+        progress_array -> Array<Nullable<Int4>>,
     }
 }
 
@@ -47,13 +39,11 @@ diesel::table! {
 
 diesel::joinable!(progress -> knowledge_graphs (graph));
 diesel::joinable!(progress -> users (user_id));
-diesel::joinable!(resources -> topics (topic_id));
 diesel::joinable!(topics -> knowledge_graphs (knowledge_graph_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     knowledge_graphs,
     progress,
-    resources,
     topics,
     users,
 );
