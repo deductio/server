@@ -3,7 +3,7 @@ use rocket_db_pools::diesel::PgPool;
 
 #[derive(Database)]
 #[database("deductio")]
-pub struct Db(PgPool);
+pub struct Db(pub PgPool);
 
 pub mod knowledge_graph;
 pub mod topic;

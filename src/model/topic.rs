@@ -9,9 +9,6 @@ pub struct Topic {
     pub knowledge_graph_id: uuid::Uuid,
     pub knowledge_graph_index: i32,
     pub title: String,
-
-    /* We know that all options in here will be Some(...), yet still have to do this. */
-    pub requirements: Vec<Option<i32>>,
     pub id: i64,
     pub subject: String,
     pub content: String
