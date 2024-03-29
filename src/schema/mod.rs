@@ -25,20 +25,21 @@ diesel::table! {
 }
 
 diesel::table! {
-    requirements (source, destination) {
+    requirements (id) {
         source -> Int8,
         destination -> Int8,
+        knowledge_graph_id -> Uuid,
+        id -> Int8,
     }
 }
 
 diesel::table! {
     topics (id) {
         knowledge_graph_id -> Uuid,
-        knowledge_graph_index -> Int4,
         title -> Text,
         id -> Int8,
         subject -> Text,
-        content -> Text,
+        content -> Jsonb,
     }
 }
 
@@ -50,6 +51,7 @@ diesel::table! {
 
 diesel::joinable!(progress -> knowledge_graphs (graph));
 diesel::joinable!(progress -> users (user_id));
+diesel::joinable!(requirements -> knowledge_graphs (knowledge_graph_id));
 diesel::joinable!(topics -> knowledge_graphs (knowledge_graph_id));
 
 diesel::allow_tables_to_appear_in_same_query!(

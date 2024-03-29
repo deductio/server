@@ -4,21 +4,15 @@ use crate::model::Db;
 use rocket_db_pools::diesel::{QueryResult, prelude::*};
 
 use crate::api::types::ResponseGraph;
-use crate::model::KnowledgeGraph;
-use crate::model::Topic;
-
-use crate::schema::knowledge_graphs as KGTable;
 
 #[get("/<graph_id>")]
-pub async fn get_graph(graph_id: uuid::Uuid, mut conn: Connection<Db>) -> QueryResult<Json<ResponseGraph>> {
-    use KGTable::dsl::*;
+pub async fn get_graph(graph_id: uuid::Uuid, conn: Connection<Db>) -> QueryResult<Json<ResponseGraph>> {
+    let graph = ResponseGraph::get_graph(graph_id, conn).await?;
 
-    let graph = KGTable::table
-        .filter(id.eq(graph_id))
-        .first::<KnowledgeGraph>(&mut conn).await?;
-
-    let topics = Topic::belonging_to(&graph)
-        .load::<Topic>(&mut conn).await?;
-
-    Ok(Json(ResponseGraph { graph: graph, topics: topics }))
+    Ok(Json(graph))
 }
+
+/* 
+#[post("/create")]
+pub async fn create_graph()
+*/

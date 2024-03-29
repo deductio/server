@@ -15,6 +15,9 @@ use diesel_async_migrations::EmbeddedMigrations;
 use rocket_db_pools::Database;
 use rocket::{Rocket, Build};
 use rocket::fairing::{AdHoc, self};
+use rocket_oauth2::OAuth2;
+
+struct GitHub;
 
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("./migrations");
 
@@ -45,7 +48,9 @@ fn rocket() -> _ {
     rocket::build()
         .mount("/", routes![scrub])
         .mount("/graph", routes![routes::get_graph])
+        .mount("/oauth", routes![oauth::github_callback, oauth::github_login])
         .attach(Db::init())
         .attach(AdHoc::try_on_ignite("run_migrations", run_migrations))
+        .attach(OAuth2::<crate::api::oauth::GitHub>::fairing("github"))
 }
 
