@@ -2,6 +2,7 @@
 #[macro_use] extern crate serde;
 #[macro_use] extern crate diesel_async_migrations;
 extern crate dotenvy;
+extern crate reqwest;
 extern crate diesel;
 extern crate uuid;
 
@@ -16,8 +17,6 @@ use rocket_db_pools::Database;
 use rocket::{Rocket, Build};
 use rocket::fairing::{AdHoc, self};
 use rocket_oauth2::OAuth2;
-
-struct GitHub;
 
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("./migrations");
 
@@ -51,6 +50,6 @@ fn rocket() -> _ {
         .mount("/oauth", routes![oauth::github_callback, oauth::github_login])
         .attach(Db::init())
         .attach(AdHoc::try_on_ignite("run_migrations", run_migrations))
-        .attach(OAuth2::<crate::api::oauth::GitHub>::fairing("github"))
+        .attach(OAuth2::<crate::api::oauth::GitHubInfo>::fairing("github"))
 }
 

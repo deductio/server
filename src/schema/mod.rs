@@ -12,15 +12,15 @@ diesel::table! {
         id -> Uuid,
         name -> Text,
         description -> Text,
-        owner -> Text,
+        author -> Int8,
     }
 }
 
 diesel::table! {
     progress (user_id, graph) {
-        user_id -> Text,
         graph -> Uuid,
         user_progress -> Array<Nullable<Int4>>,
+        user_id -> Int8,
     }
 }
 
@@ -45,10 +45,15 @@ diesel::table! {
 
 diesel::table! {
     users (id) {
-        id -> Text,
+        github_user_id -> Nullable<Text>,
+        google_user_id -> Nullable<Text>,
+        username -> Text,
+        avatar -> Nullable<Text>,
+        id -> Int8,
     }
 }
 
+diesel::joinable!(knowledge_graphs -> users (author));
 diesel::joinable!(progress -> knowledge_graphs (graph));
 diesel::joinable!(progress -> users (user_id));
 diesel::joinable!(requirements -> knowledge_graphs (knowledge_graph_id));

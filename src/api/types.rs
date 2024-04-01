@@ -12,7 +12,6 @@ pub struct ResponseGraph {
     pub graph: KnowledgeGraph,
     pub topics: Vec<Topic>,
     pub requirements: Vec<(i64, i64)>
-
 }
 
 use crate::schema::knowledge_graphs as KGTable;
@@ -41,4 +40,11 @@ impl ResponseGraph {
             requirements: requirements
         })
     }
+}
+
+/// Represents an incoming request to create a `KnowledgeGraph`.
+#[derive(Deserialize)]
+pub struct KnowledgeGraphCreation {
+    pub name: String,
+    pub description: String
 }
