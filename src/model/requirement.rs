@@ -1,6 +1,9 @@
-use rocket_db_pools::diesel::{QueryResult, prelude::*};
+use rocket_db_pools::diesel::prelude::*;
+use rocket_db_pools::Connection;
 use serde::{Deserialize, Serialize};
+use crate::error::DeductResult;
 use crate::schema::*;
+use crate::model::Db;
 use crate::model::KnowledgeGraph;
 
 #[derive(Debug, Serialize, Deserialize, Queryable, Insertable, Associations, Identifiable)]
@@ -14,4 +17,16 @@ pub struct Requirement {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[diesel(deserialize_as = i64)]
     pub id: Option<i64>
+}
+
+impl Requirement {
+    pub async fn commit(&self, conn: &mut Connection<Db>) -> DeductResult<Requirement> {
+        Ok(diesel::insert_into(requirements::table)
+            .values(self)
+            .on_conflict(requirements::id)
+            .do_update()
+            .set((requirements::source.eq(self.source), requirements::destination.eq(self.destination)))
+            .get_result(conn)
+            .await?)
+    }
 }

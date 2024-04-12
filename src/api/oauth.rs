@@ -6,8 +6,6 @@ use rocket_oauth2::{OAuth2, TokenResponse};
 use reqwest::header::{ACCEPT, AUTHORIZATION, USER_AGENT};
 use rocket_db_pools::Connection;
 use rocket_db_pools::diesel::prelude::*;
-use crate::error::DeductError;
-use crate::model::KnowledgeGraph;
 
 use crate::model::{Db, User};
 use crate::api::error::DeductResult;
@@ -40,29 +38,6 @@ impl<'r> FromRequest<'r> for AuthenticatedUser {
             .or_forward(Status::Unauthorized)
 
     }
-}
-
-pub async fn check_user_is_owner(graph_id: uuid::Uuid, conn: &mut Connection<Db>, user: AuthenticatedUser) 
-    -> DeductResult<()> 
-{
-    use crate::schema::knowledge_graphs::dsl::*;
-
-    let graph = knowledge_graphs
-        .filter(
-            author.eq(user.db_id)
-            .and(id.eq(graph_id))
-        )
-        .first::<KnowledgeGraph>(conn)
-        .await;
-
-    match graph {
-        Ok(_) => Ok(()),
-        Err(err) => match err {
-            diesel::NotFound => Err(DeductError::UnauthorizedUser("Unauthorized access".to_string())),
-            _ => Err(err.into())
-        }
-    }
-
 }
 
 #[derive(Deserialize)]

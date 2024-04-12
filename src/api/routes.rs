@@ -1,118 +1,78 @@
 use rocket_db_pools::Connection;
 use rocket::serde::json::Json;
-use crate::model::Db;
-use crate::types::KnowledgeGraphCreation;
-use rocket_db_pools::diesel::{QueryResult, prelude::*};
-use crate::model::{KnowledgeGraph, Topic, Requirement};
+use crate::model::{Db, KnowledgeGraph, Topic, Requirement};
+use crate::model::knowledge_graph::{ResponseGraph, KnowledgeGraphCreation};
 use crate::error::DeductResult;
+use crate::api::oauth::AuthenticatedUser;
 
-use crate::api::types::ResponseGraph;
-use crate::api::oauth::{check_user_is_owner, AuthenticatedUser};
+#[get("/view/<graph_id>")]
+pub async fn get_graph(graph_id: uuid::Uuid, mut conn: Connection<Db>) -> DeductResult<Json<ResponseGraph>> {
+    let graph: KnowledgeGraph = KnowledgeGraph::get(graph_id, &mut conn)
+        .await?;
 
-#[get("/<graph_id>")]
-pub async fn get_graph(graph_id: uuid::Uuid, conn: Connection<Db>) -> QueryResult<Json<ResponseGraph>> {
-    let graph = ResponseGraph::get_graph(graph_id, conn).await?;
+     let response: ResponseGraph = graph.to_response(&mut conn)
+        .await?;
 
-    Ok(Json(graph))
+    Ok(Json(response))
 }
 
 #[post("/create", data = "<data>", format = "json")]
 pub async fn create_graph(user: AuthenticatedUser, data: Json<KnowledgeGraphCreation>, mut conn: Connection<Db>) 
     -> DeductResult<Json<KnowledgeGraph>> 
 {
-    use crate::schema::knowledge_graphs::dsl::*;
-
-    Ok(Json(diesel::insert_into(knowledge_graphs)
-        .values((author.eq(user.db_id), name.eq(data.name.clone()), description.eq(data.description.clone())))
-        .get_result(&mut conn)
-        .await?))
+    Ok(Json(KnowledgeGraph::create(user.db_id, data.name.clone(), data.description.clone(), &mut conn).await?))
 }
 
-#[put("/<graph_id>", data = "<topic>", format = "json")]
+#[put("/edit/<graph_id>", data = "<topic>", format = "json", rank = 1)]
 pub async fn add_topic(user: AuthenticatedUser, graph_id: uuid::Uuid, topic: Json<Topic>,
     mut conn: Connection<Db>) 
     -> DeductResult<Json<Topic>>
 {
-    use crate::schema::topics::dsl::*;
+    let graph = KnowledgeGraph::get(graph_id, &mut conn).await?;
+    graph.check_owner(user.db_id)?;
 
-    check_user_is_owner(graph_id, &mut conn, user).await?;
-
-    Ok(Json(diesel::insert_into(topics)
-        .values(&*topic)
-        .on_conflict(id)
-        .do_update()
-        .set((content.eq(topic.content.clone()), title.eq(topic.title.clone()), subject.eq(topic.subject.clone())))
-        .get_result(&mut conn)
-        .await?))
+    Ok(Json((*topic).commit(&mut conn).await?))
 
 }
 
-#[put("/<graph_id>", data = "<requirement>", format = "json")]
+#[put("/edit/<graph_id>", data = "<requirement>", format = "json", rank = 2)]
 pub async fn add_requirement(user: AuthenticatedUser, graph_id: uuid::Uuid, requirement: Json<Requirement>, 
     mut conn: Connection<Db>) 
     -> DeductResult<Json<Requirement>>
 {
-    use crate::schema::requirements::dsl::*;
+    let graph: KnowledgeGraph = KnowledgeGraph::get(graph_id, &mut conn).await?;
 
-    check_user_is_owner(graph_id, &mut conn, user).await?;
+    graph.check_owner(user.db_id)?;
 
-    Ok(Json(diesel::insert_into(requirements)
-        .values(&*requirement)
-        .on_conflict(id)
-        .do_update()
-        .set((source.eq(requirement.source), destination.eq(requirement.destination)))
-        .get_result(&mut conn)
-        .await?))
+    Ok(Json((*requirement).commit(&mut conn).await?))
 }
 
-#[delete("/<graph_id>?<topic>")]
+#[delete("/edit/<graph_id>?<topic>", rank = 1)]
 pub async fn delete_topic(user: AuthenticatedUser, graph_id: uuid::Uuid, topic: i64, mut conn: Connection<Db>) 
     -> DeductResult<()> 
 {
-    check_user_is_owner(graph_id, &mut conn, user).await?;
+    let graph: KnowledgeGraph = KnowledgeGraph::get(graph_id, &mut conn).await?;
 
-    use crate::schema::topics::dsl::*;
-
-    diesel::delete(
-        topics.filter(
-            id.eq(topic)
-            .and(knowledge_graph_id.eq(graph_id)))
-        )
-        .execute(&mut conn)
-        .await?;
-
-    Ok(())
+    graph.check_owner(user.db_id)?;
+    Ok(graph.delete_topic(topic, &mut conn).await?)
+    
 }
 
-#[delete("/<graph_id>?<requirement>")]
+#[delete("/edit/<graph_id>?<requirement>", rank = 2)]
 pub async fn delete_requirement(user: AuthenticatedUser, graph_id: uuid::Uuid, requirement: i64, 
     mut conn: Connection<Db>)
     -> DeductResult<()>
 {
-    check_user_is_owner(graph_id, &mut conn, user).await?;
+    let graph: KnowledgeGraph = KnowledgeGraph::get(graph_id, &mut conn).await?;
 
-    use crate::schema::requirements::dsl::*;
-
-    diesel::delete(
-        requirements.filter(
-            id.eq(requirement)
-            .and(knowledge_graph_id.eq(graph_id)))
-        )
-        .execute(&mut conn)
-        .await?;
-
-    Ok(())
+    graph.check_owner(user.db_id)?;
+    Ok(graph.delete_requirement(requirement, &mut conn).await?)
 }
 
-#[delete("/<graph_id>")]
+#[delete("/edit/<graph_id>")]
 pub async fn delete_graph(user: AuthenticatedUser, graph_id: uuid::Uuid, mut conn: Connection<Db>) -> DeductResult<()> {
-    check_user_is_owner(graph_id, &mut conn, user).await?;
+    let graph: KnowledgeGraph = KnowledgeGraph::get(graph_id, &mut conn).await?;
 
-    use crate::schema::knowledge_graphs::dsl::*;
-
-    diesel::delete(knowledge_graphs.filter(id.eq(graph_id)))
-        .execute(&mut conn)
-        .await?;
-
-    Ok(())
+    graph.check_owner(user.db_id)?;
+    Ok(graph.delete(&mut conn).await?)
 }

@@ -20,11 +20,6 @@ use rocket_oauth2::OAuth2;
 
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("./migrations");
 
-#[get("/")]
-fn scrub() -> &'static str {
-    "waga waga!"
-}
-
 async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
     if let Some(db) = Db::fetch(&rocket) {
         if let Ok(mut connection) = (&db.0).get().await {
@@ -45,8 +40,9 @@ fn rocket() -> _ {
     dotenvy::dotenv().ok().unwrap();
 
     rocket::build()
-        .mount("/", routes![scrub])
-        .mount("/graph", routes![routes::get_graph])
+        .mount("/graph", routes![
+            routes::get_graph, routes::create_graph, routes::delete_graph, routes::delete_requirement, routes::delete_topic,
+            routes::add_requirement, routes::add_topic])
         .mount("/oauth", routes![oauth::github_callback, oauth::github_login])
         .attach(Db::init())
         .attach(AdHoc::try_on_ignite("run_migrations", run_migrations))
