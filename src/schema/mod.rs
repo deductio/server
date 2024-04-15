@@ -1,5 +1,7 @@
 // @generated automatically by Diesel CLI.
 
+
+
 diesel::table! {
     extensions (source, destination) {
         source -> Uuid,
@@ -8,12 +10,16 @@ diesel::table! {
 }
 
 diesel::table! {
+    use diesel::sql_types::*;
+    use diesel_full_text_search::Tsvector;
+
     knowledge_graphs (id) {
         id -> Uuid,
         name -> Text,
         description -> Text,
         author -> Int8,
         last_modified -> Timestamp,
+        tsv_name_desc -> Tsvector,
     }
 }
 

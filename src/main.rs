@@ -1,6 +1,7 @@
 #[macro_use] extern crate rocket;
 #[macro_use] extern crate serde;
 #[macro_use] extern crate diesel_async_migrations;
+extern crate diesel_full_text_search;
 extern crate dotenvy;
 extern crate reqwest;
 extern crate diesel;
@@ -41,11 +42,15 @@ fn rocket() -> _ {
 
     rocket::build()
         .mount("/graph", routes![
-            routes::get_graph, routes::create_graph, routes::delete_graph, routes::delete_requirement, routes::delete_topic,
-            routes::add_requirement, routes::add_topic])
-        .mount("/oauth", routes![oauth::github_callback, oauth::github_login])
+            graph::get_graph, graph::create_graph, graph::delete_graph, graph::delete_requirement, graph::delete_topic,
+            graph::add_requirement, graph::add_topic])
+        .mount("/login", routes![users::github_login])
+        .mount("/auth", routes![users::github_callback])
+        .mount("/search", routes![search::search_graph])
+        .mount("/users", routes![users::view_user])
+        .mount("/logout", routes![users::logout])
         .attach(Db::init())
         .attach(AdHoc::try_on_ignite("run_migrations", run_migrations))
-        .attach(OAuth2::<crate::api::oauth::GitHubInfo>::fairing("github"))
+        .attach(OAuth2::<crate::api::users::GitHubInfo>::fairing("github"))
 }
 

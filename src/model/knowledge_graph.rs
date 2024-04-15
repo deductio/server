@@ -1,15 +1,20 @@
-use rocket_db_pools::diesel::{QueryResult, prelude::*};
+use rocket_db_pools::diesel::deserialize::FromSqlRow;
+use crate::diesel_full_text_search::TsVectorExtensions;
+use diesel::pg::Pg;
+use rocket_db_pools::diesel::row::Row;
+use rocket_db_pools::diesel::prelude::*;
+use rocket_db_pools::diesel::deserialize::{self, Queryable};
 use rocket_db_pools::Connection;
 use crate::error::{DeductError, DeductResult};
 use crate::schema::*;
 use crate::model::*;
-use std::future::*;
+use crate::search::SearchResultGraph;
 
 fn flatten_3<A, B, C, E>(tuple: (Result<A, E>, Result<B, E>, Result<C, E>)) -> Result<(A, B, C), E> {
     Ok((tuple.0?, tuple.1?, tuple.2?))
 }
 
-#[derive(Debug, Serialize, Deserialize, Associations, Queryable, Insertable, Identifiable)]
+#[derive(Debug, Serialize, Deserialize, Associations, Selectable, Queryable, Insertable, Identifiable)]
 #[diesel(table_name = knowledge_graphs, belongs_to(User, foreign_key = author))]
 pub struct KnowledgeGraph {
     pub id: uuid::Uuid,
@@ -18,6 +23,56 @@ pub struct KnowledgeGraph {
     pub author: i64,
     pub last_modified: std::time::SystemTime
 }
+
+// ABANDON ALL HOPE, YE WHO ENTER HERE
+// DIESEL HAS BROKE MY HEART AND FORCED ME TO CIRCUMVENT ITS BEAUTY
+// THERE IS NO WARRANTY AND NO HOPE BEYOND THIS POINT
+struct InternalTsvector;
+
+struct InternalKnowledgeGraph {
+    pub id: uuid::Uuid,
+    pub name: String,
+    pub description: String,
+    pub author: i64,
+    pub last_modified: std::time::SystemTime,
+    pub tsv_name_desc: InternalTsvector
+}
+
+use diesel::sql_types::*;
+
+type KnowledgeGraphReturning = (Uuid, Text, Text, BigInt, Timestamp, diesel_full_text_search::TsVector);
+
+impl Into<InternalKnowledgeGraph> for KnowledgeGraph {
+    fn into(self) -> InternalKnowledgeGraph {
+        InternalKnowledgeGraph {
+            id: self.id,
+            name: self.name,
+            description: self.description,
+            author: self.author,
+            last_modified: self.last_modified,
+            tsv_name_desc: InternalTsvector {}
+        }
+    }
+}
+
+// This is not updated when schemas are updated, must be done, or risk runtime crash(?)
+impl FromSqlRow<KnowledgeGraphReturning, Pg> for InternalKnowledgeGraph {
+    fn build_from_row<'a>(row: &impl Row<'a, Pg>) -> deserialize::Result<Self> {
+
+        Ok(InternalKnowledgeGraph {
+            id: row.get_value::<Uuid, uuid::Uuid, usize>(0)?,
+            name: row.get_value::<Text, String, usize>(1)?,
+            description: row.get_value::<Text, String, usize>(2)?,
+            author: row.get_value::<BigInt, i64, usize>(3)?,
+            last_modified: row.get_value::<Timestamp, std::time::SystemTime, usize>(4)?,
+            tsv_name_desc: InternalTsvector {}
+        })
+
+    }
+}
+
+const KG_SELECT: (knowledge_graphs::columns::id, knowledge_graphs::columns::name, knowledge_graphs::columns::description, knowledge_graphs::columns::author, knowledge_graphs::columns::last_modified)
+ = (knowledge_graphs::id, knowledge_graphs::name,  knowledge_graphs::description, knowledge_graphs::author, knowledge_graphs::last_modified);
 
 /// A full response to the user that provides all information necessary to render a graph and institute all
 /// constraints, such as edges within the graph to structure progress, and requirements outside the graph
@@ -34,27 +89,38 @@ pub struct ResponseGraph {
 impl KnowledgeGraph {
     pub async fn create(user_id: i64, name: String, description: String, conn: &mut Connection<Db>) -> DeductResult<KnowledgeGraph> {
         Ok(diesel::insert_into(knowledge_graphs::table)
-            .values((knowledge_graphs::author.eq(user_id), knowledge_graphs::name.eq(name), knowledge_graphs::description.eq(description)))
-            .get_result::<KnowledgeGraph>(conn)
-            .await?)
+            .values((knowledge_graphs::id.eq(uuid::Uuid::new_v4()), knowledge_graphs::author.eq(user_id), knowledge_graphs::name.eq(name), knowledge_graphs::description.eq(description)))
+            .get_result(conn)
+            .await
+            .map(|x: InternalKnowledgeGraph| -> KnowledgeGraph {
+                KnowledgeGraph {
+                    id: x.id,
+                    name: x.name,
+                    description: x.description,
+                    author: x.author,
+                    last_modified: x.last_modified
+                }
+            })?)
     }
 
     pub async fn get(id: uuid::Uuid, conn: &mut Connection<Db>) -> DeductResult<KnowledgeGraph> {
         Ok(knowledge_graphs::table
             .filter(knowledge_graphs::id.eq(id))
+            .select(KG_SELECT)
             .first::<KnowledgeGraph>(conn)
             .await?)
     }
 
-    pub async fn get_from_path(username: String, title: String, mut conn: Connection<Db>) -> DeductResult<KnowledgeGraph> {
-        let user = User::get_from_username(username, &mut conn).await?;
+    pub async fn get_from_path(username: String, title: String, conn: &mut Connection<Db>) -> DeductResult<KnowledgeGraph> {
+        let user = User::get_from_username(username, conn).await?;
 
         Ok(knowledge_graphs::table
             .filter(
                 knowledge_graphs::author.eq(user.id)
                 .and(knowledge_graphs::name.eq(title))
                 )
-            .first::<KnowledgeGraph>(&mut conn)
+            .select(KG_SELECT)
+            .first::<KnowledgeGraph>(conn)
             .await?)
     }
 
@@ -142,22 +208,36 @@ impl KnowledgeGraph {
         })
     }
 
+    pub async fn search(query: String, offset: i64, conn: &mut Connection<Db>) -> DeductResult<Vec<SearchResultGraph>> {
+        Ok(
+            knowledge_graphs::table
+            .inner_join(users::table)
+            .filter(knowledge_graphs::tsv_name_desc.matches(diesel_full_text_search::to_tsquery(query)))
+            .select((KnowledgeGraph::as_select(), User::as_select()))
+            .offset(offset * 10)
+            .limit(10)
+            .load::<(KnowledgeGraph, User)>(conn)
+            .await?
+            .iter()
+            .map(|(graph, user)| {
+                SearchResultGraph {
+                    id: graph.id,
+                    author: user.username.clone(),
+                    description: graph.description.clone(),
+                    name: graph.name.clone(),
+                    last_modified: graph.last_modified
+                }
+            })
+            .collect()
+        )
+    }
+
 }
 
 
 /// Represents an incoming request to create a `KnowledgeGraph`.
-#[derive(Deserialize)]
+#[derive(Deserialize, FromForm)]
 pub struct KnowledgeGraphCreation {
     pub name: String,
     pub description: String
-}
-
-/// Represents a result in a search for graphs. Provides the ID of the graph (to
-/// access the link), as well as the title, description, and author of the graph.
-#[derive(Serialize)]
-pub struct SearchResultGraph {
-    pub id: uuid::Uuid,
-    pub name: String,
-    pub description: String,
-    pub author: String
 }

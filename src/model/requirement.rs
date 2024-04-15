@@ -22,7 +22,8 @@ pub struct Requirement {
 impl Requirement {
     pub async fn commit(&self, conn: &mut Connection<Db>) -> DeductResult<Requirement> {
         Ok(diesel::insert_into(requirements::table)
-            .values(self)
+            .values((requirements::knowledge_graph_id.eq(self.knowledge_graph_id), requirements::destination.eq(self.destination), 
+                requirements::source.eq(self.source)))
             .on_conflict(requirements::id)
             .do_update()
             .set((requirements::source.eq(self.source), requirements::destination.eq(self.destination)))

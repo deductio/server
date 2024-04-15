@@ -1,13 +1,130 @@
+use rocket::http::{Cookie, CookieJar, SameSite, Status};
+use rocket::outcome::IntoOutcome;
+use rocket::request::{FromRequest, Request, Outcome};
+use rocket::response::Redirect;
+use rocket::serde::json::Json;
+use rocket_oauth2::{OAuth2, TokenResponse};
+use reqwest::header::{ACCEPT, AUTHORIZATION, USER_AGENT};
 use rocket_db_pools::Connection;
-use crate::error::DeductResult;
-use crate::model::user;
-use crate::model::user::User;
-use crate::model::Db;
-use crate::model::KnowledgeGraph;
-use crate::schema::knowledge_graphs;
-use crate::schema::users;
-use crate::model::knowledge_graph::SearchResultGraph;
 use rocket_db_pools::diesel::prelude::*;
+
+use crate::model::user::UserPage;
+use crate::model::{Db, User};
+use crate::api::error::DeductResult;
+
+pub struct AuthenticatedUser {
+    pub name: String,
+    pub db_id: i64
+}
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for AuthenticatedUser {
+    type Error = ();
+
+    async fn from_request(request: &'r Request<'_>) -> Outcome<AuthenticatedUser, ()> {
+        let cookies = request.cookies();
+
+        let id = cookies
+            .get_private("id")
+            .and_then(|c| c.value().parse().ok());
+
+        let name = cookies
+            .get("name")
+            .and_then(|c| c.value().parse().ok());
+
+        println!("{:?} {:?}", id, name);
+            
+        name.zip(id)
+            .map(|(name, id)| AuthenticatedUser {
+                name: name,
+                db_id: id
+            })
+            .or_forward(Status::Unauthorized)
+
+    }
+}
+
+#[derive(Deserialize)]
+pub struct GitHubInfo {
+    name: String,
+    id: i64,
+    avatar_url: Option<String>
+}
+
+#[get("/github")]
+pub fn github_login(oauth2: OAuth2<GitHubInfo>, cookies: &CookieJar<'_>) -> Redirect {
+    oauth2.get_redirect(cookies, &["user:read"]).unwrap()
+}
+
+#[get("/github")]
+pub async fn github_callback(token: TokenResponse<GitHubInfo>, cookies: &CookieJar<'_>, mut conn: Connection<Db>) 
+    -> DeductResult<Redirect>
+{
+
+    use crate::schema::users::dsl::*;
+
+    let user_info: GitHubInfo = reqwest::Client::builder()
+        .build()?
+        .get("https://api.github.com/user")
+        .header(AUTHORIZATION, format!("token {}", token.access_token()))
+        .header(ACCEPT, "application/vnd.github.v3+json")
+        .header(USER_AGENT, "rocket_oauth2 deduct-io")
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    let db_user = users
+        .filter(github_user_id.eq(user_info.id.to_string()))
+        .first::<User>(&mut conn)
+        .await;
+
+    match db_user {
+        // user is registered
+        Ok(user) => {
+            cookies.add_private(
+                Cookie::build(("id", user.id.to_string()))
+                    .same_site(SameSite::Lax)
+                    .build()
+            );
+        
+            cookies.add(
+                Cookie::build(("name", user.username))
+                    .same_site(SameSite::Lax)
+                    .build()
+            );
+
+            match user.avatar {
+                Some(avatar_url) => {
+                    cookies.add(
+                        Cookie::build(("avatar", avatar_url))
+                            .same_site(SameSite::Lax)
+                            .build()
+                    )
+                },
+                None => ()
+            };
+        },
+        Err(err) => match err {
+            // we need to register this user!
+            diesel::NotFound => {
+                diesel::insert_into(users).values((
+                    username.eq(user_info.name),
+                    github_user_id.eq(user_info.id.to_string()),
+                    avatar.eq(user_info.avatar_url)
+                ))
+                .execute(&mut conn)
+                .await?;
+
+            },
+            _ => {
+                return Err(err.into());
+            }
+        }
+    }
+
+    Ok(Redirect::to("http://localhost:5173/"))
+}
 
 #[derive(Serialize)]
 pub struct ResponseUser {
@@ -15,37 +132,18 @@ pub struct ResponseUser {
     pub avatar: Option<String>
 }
 
-#[derive(Serialize)]
-pub struct UserPage {
-    pub user: ResponseUser,
-    pub graphs: Vec<SearchResultGraph>
+#[get("/<username>?<offset>")]
+pub async fn view_user(username: String, mut conn: Connection<Db>, offset: Option<i64>) -> DeductResult<Json<UserPage>> {
+    Ok(Json(UserPage::get_user_with_offset(username, offset.unwrap_or(0), &mut conn).await?))
 }
 
-impl UserPage {
-    pub async fn get_user_with_offset(username: String, page: i64, conn: &mut Connection<Db>) -> DeductResult<UserPage> {
-        let user = users::table
-            .filter(users::username.eq(username))
-            .first::<User>(conn)
-            .await?;
-    
-        let graphs = KnowledgeGraph::belonging_to(&user)
-            .select((knowledge_graphs::id, knowledge_graphs::name, knowledge_graphs::description))
-            .offset(page * 10)
-            .limit(10)
-            .load::<(uuid::Uuid, String, String)>(conn)
-            .await?;
-    
-    
-        Ok(UserPage {
-            user: ResponseUser {
-                username: user.username.clone(),
-                avatar: user.avatar.clone()
-            },
+#[get("/")]
+pub fn logout(_user: AuthenticatedUser, cookies: &CookieJar<'_>,) -> Redirect {
 
-            graphs: graphs
-                .iter()
-                .map(|graph| SearchResultGraph { author: user.username.clone(), id: graph.0, name: graph.1.clone(), description: graph.2.clone() } )
-                .collect()
-        })
-    }
+    cookies.remove("name");
+    cookies.remove("avatar");
+    cookies.remove_private("id");
+
+    Redirect::to("http://localhost:5173/")
+
 }
