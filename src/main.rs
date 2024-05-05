@@ -4,6 +4,7 @@
 extern crate diesel_full_text_search;
 extern crate dotenvy;
 extern crate reqwest;
+extern crate chrono;
 extern crate diesel;
 extern crate uuid;
 
@@ -41,14 +42,17 @@ fn rocket() -> _ {
     dotenvy::dotenv().ok().unwrap();
 
     rocket::build()
-        .mount("/graph", routes![
-            graph::get_graph, graph::create_graph, graph::delete_graph, graph::delete_requirement, graph::delete_topic,
-            graph::add_requirement, graph::add_topic])
-        .mount("/login", routes![users::github_login])
-        .mount("/auth", routes![users::github_callback])
-        .mount("/search", routes![search::search_graph])
-        .mount("/users", routes![users::view_user])
-        .mount("/logout", routes![users::logout])
+        .mount("/api/graph/view", routes![graph::view::get_graph_from_username, graph::view::get_graph, graph::view::get_graph_with_progress])
+        .mount("/api/graph/edit", routes![graph::edit::add_requirement, graph::edit::add_topic, graph::edit::delete_requirement,
+            graph::edit::delete_topic, graph::edit::delete_graph])
+        .mount("/api/graph/progress", routes![graph::progress::put_progress, graph::progress::delete_progress])
+        .mount("/api/graph/create", routes![graph::create::create_graph])
+        .mount("/api/graph/like", routes![graph::like::like_graph, graph::like::unlike_graph])
+        .mount("/api/login", routes![users::github_login])
+        .mount("/api/auth", routes![users::github_callback])
+        .mount("/api/search", routes![search::search_graph])
+        .mount("/api/users", routes![users::view_user])
+        .mount("/api/logout", routes![users::logout])
         .attach(Db::init())
         .attach(AdHoc::try_on_ignite("run_migrations", run_migrations))
         .attach(OAuth2::<crate::api::users::GitHubInfo>::fairing("github"))

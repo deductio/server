@@ -43,7 +43,7 @@ impl UserPage {
             .select((knowledge_graphs::id, knowledge_graphs::name, knowledge_graphs::description, knowledge_graphs::last_modified))
             .offset(page * 10)
             .limit(10)
-            .load::<(uuid::Uuid, String, String, std::time::SystemTime)>(conn)
+            .load::<(uuid::Uuid, String, String, chrono::NaiveDate)>(conn)
             .await?;
     
     

@@ -1,9 +1,6 @@
-use rocket_db_pools::diesel::{QueryResult, prelude::*};
-use rocket_db_pools::Connection;
-use crate::error::{DeductError, DeductResult};
+use rocket_db_pools::diesel::prelude::*;
 use crate::schema::*;
-use crate::model::{Db, KnowledgeGraph, Objective};
-use rocket_db_pools::diesel::query_dsl::LoadQuery;
+use crate::model::KnowledgeGraph;
 
 #[derive(Debug, Serialize, Deserialize, Queryable, Insertable, Clone, Identifiable, Associations)]
 #[diesel(table_name = objective_prerequisites, belongs_to(KnowledgeGraph), primary_key(knowledge_graph_id, topic, objective))]

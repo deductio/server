@@ -10,10 +10,6 @@ use crate::schema::*;
 use crate::model::*;
 use crate::search::SearchResultGraph;
 
-fn flatten_3<A, B, C, E>(tuple: (Result<A, E>, Result<B, E>, Result<C, E>)) -> Result<(A, B, C), E> {
-    Ok((tuple.0?, tuple.1?, tuple.2?))
-}
-
 #[derive(Debug, Serialize, Deserialize, Associations, Selectable, Queryable, Insertable, Identifiable)]
 #[diesel(table_name = knowledge_graphs, belongs_to(User, foreign_key = author))]
 pub struct KnowledgeGraph {
@@ -21,7 +17,8 @@ pub struct KnowledgeGraph {
     pub name: String,
     pub description: String,
     pub author: i64,
-    pub last_modified: std::time::SystemTime
+    pub last_modified: chrono::NaiveDate,
+    pub like_count: i32
 }
 
 // ABANDON ALL HOPE, YE WHO ENTER HERE
@@ -34,13 +31,14 @@ struct InternalKnowledgeGraph {
     pub name: String,
     pub description: String,
     pub author: i64,
-    pub last_modified: std::time::SystemTime,
-    pub tsv_name_desc: InternalTsvector
+    pub last_modified: chrono::NaiveDate,
+    pub tsv_name_desc: InternalTsvector,
+    pub like_count: i32
 }
 
 use diesel::sql_types::*;
 
-type KnowledgeGraphReturning = (Uuid, Text, Text, BigInt, Timestamp, diesel_full_text_search::TsVector);
+type KnowledgeGraphReturning = (Uuid, Text, Text, BigInt, Date, diesel_full_text_search::TsVector, Integer);
 
 impl Into<InternalKnowledgeGraph> for KnowledgeGraph {
     fn into(self) -> InternalKnowledgeGraph {
@@ -50,7 +48,8 @@ impl Into<InternalKnowledgeGraph> for KnowledgeGraph {
             description: self.description,
             author: self.author,
             last_modified: self.last_modified,
-            tsv_name_desc: InternalTsvector {}
+            tsv_name_desc: InternalTsvector {},
+            like_count: self.like_count
         }
     }
 }
@@ -64,15 +63,17 @@ impl FromSqlRow<KnowledgeGraphReturning, Pg> for InternalKnowledgeGraph {
             name: row.get_value::<Text, String, usize>(1)?,
             description: row.get_value::<Text, String, usize>(2)?,
             author: row.get_value::<BigInt, i64, usize>(3)?,
-            last_modified: row.get_value::<Timestamp, std::time::SystemTime, usize>(4)?,
-            tsv_name_desc: InternalTsvector {}
+            last_modified: row.get_value::<Date, chrono::NaiveDate, usize>(4)?,
+            tsv_name_desc: InternalTsvector {},
+            like_count: row.get_value::<Integer, i32, usize>(6)?
         })
 
     }
 }
 
-const KG_SELECT: (knowledge_graphs::columns::id, knowledge_graphs::columns::name, knowledge_graphs::columns::description, knowledge_graphs::columns::author, knowledge_graphs::columns::last_modified)
- = (knowledge_graphs::id, knowledge_graphs::name,  knowledge_graphs::description, knowledge_graphs::author, knowledge_graphs::last_modified);
+const KG_SELECT: (knowledge_graphs::columns::id, knowledge_graphs::columns::name, knowledge_graphs::columns::description, 
+    knowledge_graphs::columns::author, knowledge_graphs::columns::last_modified, knowledge_graphs::columns::like_count)
+ = (knowledge_graphs::id, knowledge_graphs::name,  knowledge_graphs::description, knowledge_graphs::author, knowledge_graphs::last_modified, knowledge_graphs::like_count);
 
 /// A full response to the user that provides all information necessary to render a graph and institute all
 /// constraints, such as edges within the graph to structure progress, and requirements outside the graph
@@ -83,7 +84,8 @@ pub struct ResponseGraph {
     pub graph: KnowledgeGraph,
     pub topics: Vec<Topic>,
     pub requirements: Vec<(i64, i64)>,
-    pub objectives: Vec<(i64, Objective)>
+    pub objectives: Vec<(i64, Objective)>,
+    pub progress: Option<Vec<i64>>
 }
 
 impl KnowledgeGraph {
@@ -98,7 +100,8 @@ impl KnowledgeGraph {
                     name: x.name,
                     description: x.description,
                     author: x.author,
-                    last_modified: x.last_modified
+                    last_modified: x.last_modified,
+                    like_count: x.like_count
                 }
             })?)
     }
@@ -204,13 +207,14 @@ impl KnowledgeGraph {
                 .iter()
                 .cloned()
                 .map(|(prereq, obj)| (prereq.topic, obj))
-                .collect()
+                .collect(),
+
+            progress: None
         })
     }
 
     pub async fn search(query: String, offset: i64, conn: &mut Connection<Db>) -> DeductResult<Vec<SearchResultGraph>> {
-        Ok(
-            knowledge_graphs::table
+        Ok(knowledge_graphs::table
             .inner_join(users::table)
             .filter(knowledge_graphs::tsv_name_desc.matches(diesel_full_text_search::to_tsquery(query)))
             .select((KnowledgeGraph::as_select(), User::as_select()))
@@ -225,15 +229,15 @@ impl KnowledgeGraph {
                     author: user.username.clone(),
                     description: graph.description.clone(),
                     name: graph.name.clone(),
-                    last_modified: graph.last_modified
+                    last_modified: graph.last_modified,
                 }
             })
             .collect()
         )
     }
 
-}
 
+}
 
 /// Represents an incoming request to create a `KnowledgeGraph`.
 #[derive(Deserialize, FromForm)]

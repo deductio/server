@@ -12,6 +12,8 @@ pub mod requirement;
 pub mod user;
 pub mod objective;
 pub mod objective_prerequisite;
+pub mod progress;
+pub mod like;
 
 pub use crate::model::knowledge_graph::KnowledgeGraph;
 pub use crate::model::topic::Topic;
@@ -19,3 +21,5 @@ pub use crate::model::requirement::Requirement;
 pub use crate::model::user::User;
 pub use crate::model::objective::Objective;
 pub use crate::model::objective_prerequisite::ObjectivePrerequisite;
+pub use crate::model::progress::Progress;
+pub use crate::model::like::Like;

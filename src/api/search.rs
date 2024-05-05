@@ -12,7 +12,7 @@ pub struct SearchResultGraph {
     pub name: String,
     pub description: String,
     pub author: String,
-    pub last_modified: std::time::SystemTime
+    pub last_modified: chrono::NaiveDate
 }
 
 #[derive(FromFormField)]
@@ -28,7 +28,8 @@ pub struct GraphSearchForm {
     pub order: GraphSearchSorting
 }
 
-#[post("/?<offset>", data = "<data>")]
+
+#[post("/?<offset>", data = "<data>", rank = 2)]
 pub async fn search_graph(data: Form<GraphSearchForm>, offset: Option<i64>, mut conn: Connection<Db>) -> DeductResult<Json<Vec<SearchResultGraph>>> {
     let offset = offset.unwrap_or(0);
 

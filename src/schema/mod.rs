@@ -1,7 +1,5 @@
 // @generated automatically by Diesel CLI.
 
-
-
 diesel::table! {
     extensions (source, destination) {
         source -> Uuid,
@@ -10,16 +8,25 @@ diesel::table! {
 }
 
 diesel::table! {
-    use diesel::sql_types::*;
     use diesel_full_text_search::Tsvector;
+    use diesel::sql_types::*;
 
     knowledge_graphs (id) {
         id -> Uuid,
         name -> Text,
         description -> Text,
         author -> Int8,
-        last_modified -> Timestamp,
+        last_modified -> Date,
         tsv_name_desc -> Tsvector,
+        like_count -> Int4,
+    }
+}
+
+diesel::table! {
+    likes (knowledge_graph_id, user_id) {
+        knowledge_graph_id -> Uuid,
+        user_id -> Int8,
+        like_date -> Date,
     }
 }
 
@@ -41,10 +48,10 @@ diesel::table! {
 }
 
 diesel::table! {
-    progress (user_id, graph) {
-        graph -> Uuid,
-        user_progress -> Array<Nullable<Int4>>,
+    progress (user_id, topic) {
         user_id -> Int8,
+        knowledge_graph_id -> Uuid,
+        topic -> Int8,
     }
 }
 
@@ -78,10 +85,11 @@ diesel::table! {
 }
 
 diesel::joinable!(knowledge_graphs -> users (author));
+diesel::joinable!(likes -> knowledge_graphs (knowledge_graph_id));
+diesel::joinable!(likes -> users (user_id));
 diesel::joinable!(objective_prerequisites -> knowledge_graphs (knowledge_graph_id));
 diesel::joinable!(objective_prerequisites -> objectives (objective));
 diesel::joinable!(objective_prerequisites -> topics (topic));
-diesel::joinable!(progress -> knowledge_graphs (graph));
 diesel::joinable!(progress -> users (user_id));
 diesel::joinable!(requirements -> knowledge_graphs (knowledge_graph_id));
 diesel::joinable!(topics -> knowledge_graphs (knowledge_graph_id));
@@ -89,6 +97,7 @@ diesel::joinable!(topics -> knowledge_graphs (knowledge_graph_id));
 diesel::allow_tables_to_appear_in_same_query!(
     extensions,
     knowledge_graphs,
+    likes,
     objective_prerequisites,
     objectives,
     progress,
