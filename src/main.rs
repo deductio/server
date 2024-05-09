@@ -2,6 +2,7 @@
 #[macro_use] extern crate serde;
 #[macro_use] extern crate diesel_async_migrations;
 extern crate diesel_full_text_search;
+extern crate futures_concurrency;
 extern crate dotenvy;
 extern crate reqwest;
 extern crate chrono;

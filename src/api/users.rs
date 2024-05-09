@@ -31,8 +31,6 @@ impl<'r> FromRequest<'r> for AuthenticatedUser {
         let name = cookies
             .get("name")
             .and_then(|c| c.value().parse().ok());
-
-        println!("{:?} {:?}", id, name);
             
         name.zip(id)
             .map(|(name, id)| AuthenticatedUser {

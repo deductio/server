@@ -1,5 +1,6 @@
 use rocket_db_pools::diesel::deserialize::FromSqlRow;
 use crate::diesel_full_text_search::TsVectorExtensions;
+use futures_concurrency::future::TryJoin;
 use diesel::pg::Pg;
 use rocket_db_pools::diesel::row::Row;
 use rocket_db_pools::diesel::prelude::*;
@@ -156,10 +157,11 @@ impl KnowledgeGraph {
         Ok(())
     }
 
-    pub async fn delete_requirement(&self, requirement_id: i64, conn: &mut Connection<Db>) -> DeductResult<()> {
+    pub async fn delete_requirement(&self, req: (i64, i64), conn: &mut Connection<Db>) -> DeductResult<()> {
         diesel::delete(
             requirements::table.filter(
-                requirements::id.eq(requirement_id)
+                requirements::source.eq(req.0)
+                .and(requirements::destination.eq(req.1))
                 .and(requirements::knowledge_graph_id.eq(self.id)))
             )
             .execute(conn)
@@ -189,10 +191,8 @@ impl KnowledgeGraph {
         //let (topics, requirements, objectives) = flatten_3(std::future::join!(topics_query, requirements_query, obj_pre_query).await)?;
 
         // The goal here is to wait until std::future::join! is stablized
-        let topics = topics_query.await?;
-        let requirements = requirements_query.await?;
-        let objectives = obj_pre_query.await?;
-    
+        let (topics, requirements, objectives) = (topics_query, requirements_query, obj_pre_query).try_join().await?;
+
         Ok(ResponseGraph {
             graph: self,
 

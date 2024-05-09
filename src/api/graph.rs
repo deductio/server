@@ -118,8 +118,8 @@ pub mod edit {
         
     }
     
-    #[delete("/<graph_id>/requirement?<requirement>")]
-    pub async fn delete_requirement(user: AuthenticatedUser, graph_id: uuid::Uuid, requirement: i64, 
+    #[delete("/<graph_id>/requirement?<src>&<dest>")]
+    pub async fn delete_requirement(user: AuthenticatedUser, graph_id: uuid::Uuid, src: i64, dest: i64,
         mut conn: Connection<Db>)
         -> DeductResult<()>
     {
@@ -127,7 +127,7 @@ pub mod edit {
     
         graph.check_owner(user.db_id)?;
 
-        graph.delete_requirement(requirement, &mut conn).await
+        graph.delete_requirement((src, dest), &mut conn).await
     }
     
     #[delete("/<graph_id>")]
