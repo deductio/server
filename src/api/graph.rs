@@ -77,10 +77,20 @@ pub mod create {
 
 pub mod edit {
     use rocket_db_pools::Connection;
+    use rocket::form::Form;
     use rocket::serde::json::Json;
     use crate::model::*;
     use crate::error::DeductResult;
+    use crate::model::knowledge_graph::KnowledgeGraphCreation;
     use crate::api::users::AuthenticatedUser;
+
+    #[put("/<graph_id>", data = "<data>")]
+    pub async fn modify_graph_info(user: AuthenticatedUser, graph_id: uuid::Uuid, data: Form<KnowledgeGraphCreation>, mut conn: Connection<Db>) -> DeductResult<()> {
+        let graph = KnowledgeGraph::get(graph_id, &mut conn).await?;
+        graph.check_owner(user.db_id)?;
+
+        graph.update_info(data.name.clone(), data.description.clone(), &mut conn).await
+    }
 
     #[put("/<graph_id>/topic", data = "<topic>", format = "json")]
     pub async fn add_topic(user: AuthenticatedUser, graph_id: uuid::Uuid, topic: Json<Topic>,

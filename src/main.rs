@@ -45,7 +45,7 @@ fn rocket() -> _ {
     rocket::build()
         .mount("/api/graph/view", routes![graph::view::get_graph_from_username, graph::view::get_graph, graph::view::get_graph_with_progress])
         .mount("/api/graph/edit", routes![graph::edit::add_requirement, graph::edit::add_topic, graph::edit::delete_requirement,
-            graph::edit::delete_topic, graph::edit::delete_graph])
+            graph::edit::delete_topic, graph::edit::delete_graph, graph::edit::modify_graph_info])
         .mount("/api/graph/progress", routes![graph::progress::put_progress, graph::progress::delete_progress])
         .mount("/api/graph/create", routes![graph::create::create_graph])
         .mount("/api/graph/like", routes![graph::like::like_graph, graph::like::unlike_graph])

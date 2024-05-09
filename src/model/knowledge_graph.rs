@@ -216,7 +216,7 @@ impl KnowledgeGraph {
     pub async fn search(query: String, offset: i64, conn: &mut Connection<Db>) -> DeductResult<Vec<SearchResultGraph>> {
         Ok(knowledge_graphs::table
             .inner_join(users::table)
-            .filter(knowledge_graphs::tsv_name_desc.matches(diesel_full_text_search::to_tsquery(query)))
+            .filter(knowledge_graphs::tsv_name_desc.matches(diesel_full_text_search::websearch_to_tsquery(query)))
             .select((KnowledgeGraph::as_select(), User::as_select()))
             .offset(offset * 10)
             .limit(10)
@@ -234,6 +234,16 @@ impl KnowledgeGraph {
             })
             .collect()
         )
+    }
+
+    pub async fn update_info(self, title: String, description: String, conn: &mut Connection<Db>) -> DeductResult<()> {
+        diesel::update(knowledge_graphs::table)
+            .filter(knowledge_graphs::id.eq(self.id))
+            .set((knowledge_graphs::name.eq(title), knowledge_graphs::description.eq(description)))
+            .execute(conn)
+            .await?;
+
+        Ok(())
     }
 
 

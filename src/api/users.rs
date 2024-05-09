@@ -17,6 +17,8 @@ pub struct AuthenticatedUser {
     pub db_id: i64
 }
 
+const PRIVATE_ALPHA: bool = true;
+
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for AuthenticatedUser {
     type Error = ();
@@ -106,13 +108,17 @@ pub async fn github_callback(token: TokenResponse<GitHubInfo>, cookies: &CookieJ
         Err(err) => match err {
             // we need to register this user!
             diesel::NotFound => {
-                diesel::insert_into(users).values((
-                    username.eq(user_info.name),
-                    github_user_id.eq(user_info.id.to_string()),
-                    avatar.eq(user_info.avatar_url)
-                ))
-                .execute(&mut conn)
-                .await?;
+                if !PRIVATE_ALPHA {
+                    diesel::insert_into(users).values((
+                        username.eq(user_info.name),
+                        github_user_id.eq(user_info.id.to_string()),
+                        avatar.eq(user_info.avatar_url)
+                    ))
+                    .execute(&mut conn)
+                    .await?;
+                } else {
+                    return Err(err.into());
+                }
 
             },
             _ => {
