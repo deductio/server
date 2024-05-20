@@ -1,5 +1,6 @@
 use rocket_db_pools::diesel::deserialize::FromSqlRow;
 use crate::diesel_full_text_search::TsVectorExtensions;
+use crate::users::ResponseUser;
 use futures_concurrency::future::TryJoin;
 use diesel::pg::Pg;
 use rocket_db_pools::diesel::row::Row;
@@ -9,7 +10,8 @@ use rocket_db_pools::Connection;
 use crate::error::{DeductError, DeductResult};
 use crate::schema::*;
 use crate::model::*;
-use crate::search::SearchResultGraph;
+use crate::search::{SearchResultGraph, TrendingRange};
+use crate::api::users::AuthenticatedUser;
 
 #[derive(Debug, Serialize, Deserialize, Associations, Selectable, Queryable, Insertable, Identifiable)]
 #[diesel(table_name = knowledge_graphs, belongs_to(User, foreign_key = author))]
@@ -88,6 +90,8 @@ pub struct ResponseGraph {
     pub objectives: Vec<(i64, Objective)>,
     pub progress: Option<Vec<i64>>
 }
+
+
 
 impl KnowledgeGraph {
     pub async fn create(user_id: i64, name: String, description: String, conn: &mut Connection<Db>) -> DeductResult<KnowledgeGraph> {
@@ -199,13 +203,12 @@ impl KnowledgeGraph {
             topics: topics,
 
             requirements: requirements
-                .iter()
+                .into_iter()
                 .map(|req| (req.source, req.destination))
                 .collect(),
 
             objectives: objectives
-                .iter()
-                .cloned()
+                .into_iter()
                 .map(|(prereq, obj)| (prereq.topic, obj))
                 .collect(),
 
@@ -213,27 +216,18 @@ impl KnowledgeGraph {
         })
     }
 
-    pub async fn search(query: String, offset: i64, conn: &mut Connection<Db>) -> DeductResult<Vec<SearchResultGraph>> {
-        Ok(knowledge_graphs::table
+    pub async fn search(query: String, offset: i64, maybe_user: Option<AuthenticatedUser>, conn: &mut Connection<Db>) -> DeductResult<Vec<SearchResultGraph>> {
+        let intermediate = knowledge_graphs::table
             .inner_join(users::table)
             .filter(knowledge_graphs::tsv_name_desc.matches(diesel_full_text_search::websearch_to_tsquery(query)))
             .select((KnowledgeGraph::as_select(), User::as_select()))
             .offset(offset * 10)
             .limit(10)
             .load::<(KnowledgeGraph, User)>(conn)
-            .await?
-            .iter()
-            .map(|(graph, user)| {
-                SearchResultGraph {
-                    id: graph.id,
-                    author: user.username.clone(),
-                    description: graph.description.clone(),
-                    name: graph.name.clone(),
-                    last_modified: graph.last_modified,
-                }
-            })
-            .collect()
-        )
+            .await?;
+
+        SearchResultGraph::get_likes(intermediate, maybe_user, conn).await
+
     }
 
     pub async fn update_info(self, title: String, description: String, conn: &mut Connection<Db>) -> DeductResult<()> {
@@ -244,6 +238,46 @@ impl KnowledgeGraph {
             .await?;
 
         Ok(())
+    }
+
+    pub async fn trending(range: TrendingRange, limit: i64, maybe_user: Option<AuthenticatedUser>, conn: &mut Connection<Db>) -> DeductResult<Vec<SearchResultGraph>> {
+        use diesel::dsl::*;
+
+        let days = match range {
+            TrendingRange::Day => 1,
+            TrendingRange::Week => 7,
+            TrendingRange::Month => 31,
+            TrendingRange::AllTime => 100000
+        };
+
+        diesel::allow_columns_to_appear_in_same_group_by_clause!(users::username, users::avatar, knowledge_graphs::id, knowledge_graphs::like_count,
+            knowledge_graphs::last_modified, knowledge_graphs::author, knowledge_graphs::description, knowledge_graphs::name);
+
+        let intermediate = likes::table
+            .filter(likes::like_date.ge(date(now - days.days())))
+            .inner_join(knowledge_graphs::table
+                .inner_join(users::table)
+            )
+            .group_by((knowledge_graphs::id, users::username, users::avatar))
+            .select((count_star(), (KnowledgeGraph::as_select(), users::username, users::avatar)))
+            .limit(limit)
+            .order(count_star().desc())
+            .load::<(i64, (KnowledgeGraph, String, Option<String>))>(conn)
+            .await?
+            .into_iter()
+            .map(|(count, (graph, username, avatar))| {
+                (KnowledgeGraph {
+                    like_count: count as i32,
+                    ..graph
+                },
+                ResponseUser {
+                    username: username,
+                    avatar: avatar
+                })
+            })
+            .collect();
+
+        SearchResultGraph::get_likes(intermediate, maybe_user, conn).await
     }
 
 

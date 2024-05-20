@@ -54,6 +54,7 @@ fn rocket() -> _ {
         .mount("/api/search", routes![search::search_graph])
         .mount("/api/users", routes![users::view_user])
         .mount("/api/logout", routes![users::logout])
+        .mount("/api/trending", routes![search::get_trending_graphs])
         .attach(Db::init())
         .attach(AdHoc::try_on_ignite("run_migrations", run_migrations))
         .attach(OAuth2::<crate::api::users::GitHubInfo>::fairing("github"))

@@ -67,7 +67,7 @@ pub mod create {
     use crate::error::DeductResult;
     use crate::api::users::AuthenticatedUser;
 
-    #[post("/create", data = "<data>")]
+    #[post("/", data = "<data>")]
     pub async fn create_graph(user: AuthenticatedUser, data: Form<KnowledgeGraphCreation>, mut conn: Connection<Db>) 
         -> DeductResult<Json<KnowledgeGraph>> 
     {

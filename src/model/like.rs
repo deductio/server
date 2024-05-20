@@ -14,8 +14,10 @@ pub struct Like {
 
 impl Like {
     pub async fn insert(graph_id: uuid::Uuid, user_id: i64, conn: &mut Connection<Db>) -> DeductResult<()> {
+        use diesel::dsl::{date, now};
+        
         diesel::insert_into(likes::table)
-            .values((likes::knowledge_graph_id.eq(graph_id), likes::user_id.eq(user_id)))
+            .values((likes::knowledge_graph_id.eq(graph_id), likes::user_id.eq(user_id), likes::like_date.eq(date(now))))
             .on_conflict((likes::knowledge_graph_id, likes::user_id))
             .do_nothing()
             .execute(conn)

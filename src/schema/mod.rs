@@ -8,8 +8,8 @@ diesel::table! {
 }
 
 diesel::table! {
-    use diesel_full_text_search::Tsvector;
     use diesel::sql_types::*;
+    use diesel_full_text_search::Tsvector;
 
     knowledge_graphs (id) {
         id -> Uuid,

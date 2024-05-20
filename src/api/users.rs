@@ -130,15 +130,26 @@ pub async fn github_callback(token: TokenResponse<GitHubInfo>, cookies: &CookieJ
     Ok(Redirect::to("http://localhost:5173/"))
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct ResponseUser {
     pub username: String,
     pub avatar: Option<String>
 }
 
+impl From<User> for ResponseUser {
+    fn from(user: User) -> ResponseUser {
+        ResponseUser {
+            username: user.username,
+            avatar: user.avatar
+        }
+    }
+}
+
 #[get("/<username>?<offset>")]
-pub async fn view_user(username: String, mut conn: Connection<Db>, offset: Option<i64>) -> DeductResult<Json<UserPage>> {
-    Ok(Json(UserPage::get_user_with_offset(username, offset.unwrap_or(0), &mut conn).await?))
+pub async fn view_user(username: String, mut conn: Connection<Db>, maybe_user: Option<AuthenticatedUser>, offset: Option<i64>) 
+    -> DeductResult<Json<UserPage>> 
+{
+    Ok(Json(UserPage::get_user_with_offset(username, offset.unwrap_or(0), maybe_user, &mut conn).await?))
 }
 
 #[get("/")]
