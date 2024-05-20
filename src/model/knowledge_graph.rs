@@ -91,8 +91,6 @@ pub struct ResponseGraph {
     pub progress: Option<Vec<i64>>
 }
 
-
-
 impl KnowledgeGraph {
     pub async fn create(user_id: i64, name: String, description: String, conn: &mut Connection<Db>) -> DeductResult<KnowledgeGraph> {
         Ok(diesel::insert_into(knowledge_graphs::table)

@@ -166,3 +166,14 @@ pub mod like {
     }
 }
 
+pub mod preview {
+    use rocket_db_pools::Connection;
+    use crate::model::{Db, KnowledgeGraph};
+    use rocket::serde::json::Json;
+    use crate::api::error::DeductResult;
+    
+    #[get("/<graph_id>")]
+    pub async fn preview(graph_id: uuid::Uuid, mut conn: Connection<Db>) -> DeductResult<Json<KnowledgeGraph>> {
+        Ok(Json(KnowledgeGraph::get(graph_id, &mut conn).await?))
+    }
+}
