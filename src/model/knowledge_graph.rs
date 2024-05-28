@@ -178,21 +178,13 @@ impl KnowledgeGraph {
 
         let requirements_query = Requirement::belonging_to(&self)
             .load::<Requirement>(conn);
-            //.iter()
-            //.map(|x| (x.source, x.destination))
-            //.collect();
 
         let obj_pre_query = objective_prerequisites::table
             .inner_join(objectives::table)
-            .filter(
-                objective_prerequisites::knowledge_graph_id.eq(self.id)
-                .and(objective_prerequisites::topic_to_objective.eq(false))
-            )
+            .select((ObjectivePrerequisite::as_select(), Objective::as_select()))
+            .filter(objective_prerequisites::knowledge_graph_id.eq(self.id))
             .load::<(ObjectivePrerequisite, Objective)>(conn);
 
-        //let (topics, requirements, objectives) = flatten_3(std::future::join!(topics_query, requirements_query, obj_pre_query).await)?;
-
-        // The goal here is to wait until std::future::join! is stablized
         let (topics, requirements, objectives) = (topics_query, requirements_query, obj_pre_query).try_join().await?;
 
         Ok(ResponseGraph {

@@ -5,7 +5,7 @@ use crate::error::DeductResult;
 use crate::schema::*;
 use crate::model::{Db, KnowledgeGraph, Requirement};
 
-#[derive(Debug, Serialize, Deserialize, Queryable, Insertable, Associations, Identifiable)]
+#[derive(Debug, Serialize, Deserialize, Queryable, Insertable, Associations, Identifiable, QueryableByName)]
 #[diesel(belongs_to(KnowledgeGraph), table_name = topics)]
 
 pub struct Topic {

@@ -14,6 +14,7 @@ pub mod objective;
 pub mod objective_prerequisite;
 pub mod progress;
 pub mod like;
+pub mod learning_map;
 
 pub use crate::model::knowledge_graph::KnowledgeGraph;
 pub use crate::model::topic::Topic;
