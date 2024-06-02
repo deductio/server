@@ -6,19 +6,19 @@ pub enum DeductError {
     DieselError(Debug<diesel::result::Error>),
 
     #[response(status = 401)]
-    UnauthorizedUser(String),
+    UnauthorizedUser(&'static str),
     
     #[response(status = 400)]
-    BadRequest(String),
+    BadRequest(&'static str),
 
     #[response(status = 404)]
-    NotFound(String)
+    NotFound(&'static str)
 }
 
 impl From<diesel::result::Error> for DeductError {
     fn from(err: diesel::result::Error) -> DeductError {
         match err {
-            diesel::result::Error::NotFound => Self::NotFound("Not found".to_string()),
+            diesel::result::Error::NotFound => Self::NotFound("Not found"),
             _ => Self::DieselError(Debug(err))
         }
     }

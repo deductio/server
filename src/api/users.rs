@@ -160,5 +160,54 @@ pub fn logout(_user: AuthenticatedUser, cookies: &CookieJar<'_>,) -> Redirect {
     cookies.remove_private("id");
 
     Redirect::to("http://localhost:5173/")
+}
 
+pub struct AuthorizedUser {
+    pub name: String,
+    pub db_id: i64,
+    pub knowledge_graph_id: uuid::Uuid
+}
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for AuthorizedUser {
+    type Error = ();
+
+    async fn from_request(request: &'r Request<'_>) -> Outcome<AuthorizedUser, ()> {
+        let cookies = request.cookies();
+
+        let id = cookies
+            .get_private("id")
+            .and_then(|c| c.value().parse().ok());
+
+        let name = cookies
+            .get("name")
+            .and_then(|c| c.value().parse().ok());
+
+        let graph = cookies
+            .get_private("knowledge_graph_id")
+            .and_then(|c| c.value().parse().ok());
+
+        match (name, id, graph) {
+            (Some(name), Some(id), Some(graph)) => Outcome::Success(AuthorizedUser {
+                name: name,
+                db_id: id,
+                knowledge_graph_id: graph
+            }),
+            _ => Outcome::Forward(Status::Unauthorized)
+        }
+    }
+}
+
+impl AuthorizedUser {
+    #[inline(always)]
+    pub fn check_owner(self, graph_id: uuid::Uuid) -> DeductResult<()> {
+
+        use crate::api::error::DeductError;
+
+        if self.knowledge_graph_id != graph_id {
+            Err(DeductError::UnauthorizedUser("User is not authorized to access this graph"))
+        } else {
+            Ok(())
+        }
+    }
 }

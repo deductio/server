@@ -5,6 +5,8 @@ use crate::schema::*;
 use crate::model::{Db, KnowledgeGraph, User};
 use crate::search::SearchResultGraph;
 use crate::users::AuthenticatedUser;
+use diesel_full_text_search::TsVectorExtensions;
+use crate::model::knowledge_graph::PreviewGraph;
 
 #[derive(Debug, Serialize, Deserialize, Selectable, Queryable, Clone)]
 #[diesel(table_name = objectives)]
@@ -49,5 +51,64 @@ impl Objective {
             .await?;
 
         SearchResultGraph::get_likes(res, None, conn).await  
+    }
+
+    pub async fn search_objectives(query: String, page: i64, conn: &mut Connection<Db>) -> DeductResult<Vec<Objective>> {
+        Ok(objectives::table
+            .filter(objectives::tsv_title_desc.matches(diesel_full_text_search::websearch_to_tsquery(query)))
+            .limit(10)
+            .offset(page * 10)
+            .select(Objective::as_select())
+            .load::<Objective>(conn)
+            .await?)
+    }
+}
+
+#[derive(Debug, Deserialize, Queryable, Insertable, Clone, Identifiable, Associations, Selectable, FromForm)]
+#[diesel(table_name = objective_prerequisites, belongs_to(KnowledgeGraph), primary_key(knowledge_graph_id, topic, objective))]
+pub struct ObjectivePrerequisite {
+    pub knowledge_graph_id: uuid::Uuid,
+    pub topic: i64,
+    pub objective: i64,
+    pub suggested_topic: i64,
+    pub suggested_graph: uuid::Uuid
+}
+
+impl ObjectivePrerequisite {
+    pub async fn commit(&self, conn: &mut Connection<Db>) -> DeductResult<()> {
+        diesel::insert_into(objective_prerequisites::table)
+            .values(self)
+            .execute(conn)
+            .await?;
+
+        Ok(())
+    }
+}
+
+#[derive(Serialize)]
+pub struct ResponseObjPrerequisite {
+    pub knowledge_graph_id: uuid::Uuid,
+    pub topic: i64,
+    pub objective: Objective,
+    pub suggested_topic: i64,
+    pub suggested_graph: PreviewGraph,
+    pub satisfied: bool
+}
+
+#[derive(Insertable, Queryable, FromForm, Serialize)]
+pub struct ObjectiveSatisfier {
+    pub knowledge_graph_id: uuid::Uuid,
+    pub objective: i64,
+    pub topic: i64
+}
+
+impl ObjectiveSatisfier {
+    pub async fn commit(&self, conn: &mut Connection<Db>) -> DeductResult<()> {
+        diesel::insert_into(objective_satisfiers::table)
+            .values(self)
+            .execute(conn)
+            .await?;
+
+        Ok(())
     }
 }

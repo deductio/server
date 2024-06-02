@@ -1,5 +1,6 @@
 // @generated automatically by Diesel CLI.
 
+
 diesel::table! {
     extensions (source, destination) {
         source -> Uuid,
