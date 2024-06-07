@@ -136,40 +136,40 @@ pub mod edit {
         KnowledgeGraph::delete_requirement(graph_id, (src, dest), &mut conn).await
     }
 
-    #[put("/<graph_id>/objsts", data = "<form>")]
-    pub async fn add_objective_satisfier(user: AuthorizedUser, graph_id: uuid::Uuid, form: Form<ObjectiveSatisfier>, mut conn: Connection<Db>) -> DeductResult<()> {    
-        if form.knowledge_graph_id != graph_id {
+    #[put("/<graph_id>/satis", data = "<data>")]
+    pub async fn add_objective_satisfier(user: AuthorizedUser, graph_id: uuid::Uuid, data: Json<ObjectiveSatisfier>, mut conn: Connection<Db>) -> DeductResult<()> {    
+        if data.knowledge_graph_id != graph_id {
             return Err(crate::error::DeductError::UnauthorizedUser("Reported graph ID's do not match"));
         }
 
         user.check_owner(graph_id)?;
 
-        (*form).commit(&mut conn).await
+        (*data).commit(&mut conn).await
     }
 
-    #[delete("/<graph_id>/objsts?<topic>")]
+    #[delete("/<graph_id>/satis?<topic>")]
     pub async fn delete_objective_satisfier(user: AuthorizedUser, graph_id: uuid::Uuid, topic: i64, mut conn: Connection<Db>) -> DeductResult<()> {
         user.check_owner(graph_id)?;
 
         KnowledgeGraph::delete_satisfier(graph_id, topic, &mut conn).await
     }
 
-    #[put("/<graph_id>/objpre", data = "<form>")]
-    pub async fn add_objective_prerequisite(user: AuthorizedUser, graph_id: uuid::Uuid, form: Form<ObjectivePrerequisite>, mut conn: Connection<Db>) -> DeductResult<()> {
-        if form.knowledge_graph_id != graph_id {
+    #[put("/<graph_id>/prereq", data = "<data>")]
+    pub async fn add_objective_prerequisite(user: AuthorizedUser, graph_id: uuid::Uuid, data: Json<ObjectivePrerequisite>, mut conn: Connection<Db>) -> DeductResult<()> {
+        if data.knowledge_graph_id != graph_id {
             return Err(crate::error::DeductError::UnauthorizedUser("Reported graph ID's do not match"));
         }
 
         user.check_owner(graph_id)?;
 
-        (*form).commit(&mut conn).await
+        (*data).commit(&mut conn).await
     }
 
-    #[delete("/<graph_id>/objpre?<src>&<dest>")]
-    pub async fn delete_objective_prerequisite(user: AuthorizedUser, graph_id: uuid::Uuid, src: i64, dest: i64, mut conn: Connection<Db>) -> DeductResult<()> {
+    #[delete("/<graph_id>/prereq?<topic>&<obj>")]
+    pub async fn delete_objective_prerequisite(user: AuthorizedUser, graph_id: uuid::Uuid, topic: i64, obj: i64, mut conn: Connection<Db>) -> DeductResult<()> {
         user.check_owner(graph_id)?;
 
-        KnowledgeGraph::delete_prerequisite(graph_id, src, dest, &mut conn).await
+        KnowledgeGraph::delete_prerequisite(graph_id, topic, obj, &mut conn).await
     }
     
     #[delete("/<graph_id>")]

@@ -7,7 +7,7 @@ use crate::schema::*;
 use crate::api::search::SearchResultGraph;
 use crate::api::users::{AuthenticatedUser, ResponseUser};
 
-#[derive(Debug, Serialize, Deserialize, Queryable, Insertable, Identifiable, Selectable)]
+#[derive(Debug, Serialize, Deserialize, Queryable, Insertable, Identifiable, Selectable, Hash, PartialEq, Eq)]
 #[diesel(table_name = users)]
 pub struct User {
     pub github_user_id: Option<String>,

@@ -1,17 +1,18 @@
 use diesel_full_text_search::TsVectorExtensions;
+use objective::ResponseObjSatisfier;
 use crate::users::ResponseUser;
 use futures_concurrency::future::TryJoin;
 use rocket_db_pools::diesel::prelude::*;
 use rocket_db_pools::diesel::deserialize::Queryable;
 use rocket_db_pools::Connection;
-use crate::error::{DeductError, DeductResult};
+use crate::error::DeductResult;
 use crate::schema::*;
 use crate::model::*;
 use crate::search::{SearchResultGraph, TrendingRange};
 use crate::api::users::AuthenticatedUser;
-use crate::model::objective::{ResponseObjPrerequisite, ObjectivePrerequisite};
+use crate::model::objective::*;
 
-#[derive(Debug, Serialize, Deserialize, Associations, Selectable, Queryable, Insertable, Identifiable)]
+#[derive(Debug, Serialize, Deserialize, Associations, Selectable, Queryable, Insertable, Identifiable, Hash, PartialEq, Eq)]
 #[diesel(table_name = knowledge_graphs, belongs_to(User, foreign_key = author))]
 pub struct KnowledgeGraph {
     pub id: uuid::Uuid,
@@ -32,6 +33,7 @@ pub struct ResponseGraph {
     pub topics: Vec<Topic>,
     pub requirements: Vec<(i64, i64)>,
     pub objectives: Vec<ResponseObjPrerequisite>,
+    pub satisfiers: Vec<ResponseObjSatisfier>,
     pub progress: Vec<i64>
 }
 
@@ -118,11 +120,11 @@ impl KnowledgeGraph {
         Ok(())
     }
 
-    pub async fn delete_prerequisite(id: uuid::Uuid, source_topic: i64, dest_topic: i64, conn: &mut Connection<Db>) -> DeductResult<()> {
+    pub async fn delete_prerequisite(id: uuid::Uuid, topic: i64, objective_id: i64, conn: &mut Connection<Db>) -> DeductResult<()> {
         diesel::delete(objective_prerequisites::table
             .filter(objective_prerequisites::knowledge_graph_id.eq(id)
-                .and(objective_prerequisites::topic.eq(source_topic))
-                .and(objective_prerequisites::suggested_topic.eq(dest_topic))))
+                .and(objective_prerequisites::topic.eq(topic))
+                .and(objective_prerequisites::objective.eq(objective_id))))
             .execute(conn)
             .await?;
 
@@ -138,7 +140,7 @@ impl KnowledgeGraph {
 
         let (topics, requirements) = (topics_query, requirements_query).try_join().await?;
 
-        let (objectives, progress) = match maybe_user {
+        let (objectives, progress, satisfiers) = match maybe_user {
             Some(user) => 
                 (objective_prerequisites::table
                     .inner_join(objectives::table)
@@ -151,9 +153,16 @@ impl KnowledgeGraph {
                     .filter(objective_prerequisites::knowledge_graph_id.eq(self.id))
                     .load::<(ObjectivePrerequisite, Objective, KnowledgeGraph, Option<i64>)>(conn).await?,
 
-                Progress::get_user_progress(user.db_id, self.id, conn).await?),
+                Progress::get_user_progress(user.db_id, self.id, conn).await?,
+                objective_satisfiers::table
+                    .filter(objective_satisfiers::knowledge_graph_id.eq(self.id))
+                    .inner_join(objectives::table)
+                    .select((ObjectiveSatisfier::as_select(), Objective::as_select()))
+                    .load::<(ObjectiveSatisfier, Objective)>(conn)
+                    .await?
+                ),
 
-            None => (Vec::with_capacity(0), Vec::with_capacity(0))
+            None => (Vec::with_capacity(0), Vec::with_capacity(0), Vec::with_capacity(0))
         };
 
         Ok(ResponseGraph {
@@ -185,7 +194,16 @@ impl KnowledgeGraph {
             progress: progress
                 .into_iter()
                 .map(|p| p.topic)
+                .collect(),
+
+            satisfiers: satisfiers
+                .into_iter()
+                .map(|(satis, obj)| ResponseObjSatisfier {
+                    topic: satis.topic,
+                    objective: obj
+                })
                 .collect()
+
         })
     }
 

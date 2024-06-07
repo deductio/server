@@ -5,7 +5,7 @@ use crate::error::DeductResult;
 use crate::schema::*;
 use crate::model::{Db, KnowledgeGraph, Requirement};
 
-#[derive(Debug, Serialize, Deserialize, Queryable, Insertable, Associations, Identifiable, QueryableByName)]
+#[derive(Debug, Serialize, Deserialize, Queryable, Insertable, Associations, Identifiable, QueryableByName, Selectable)]
 #[diesel(belongs_to(KnowledgeGraph), table_name = topics)]
 
 pub struct Topic {
@@ -36,4 +36,13 @@ impl Topic {
 
         Some(Requirement { id: None, source: source_id, destination: destination_id, knowledge_graph_id: self.knowledge_graph_id })
     }
+}
+
+#[derive(Serialize, Queryable, Selectable, Clone)]
+#[diesel(table_name = topics)]
+pub struct PreviewTopic {
+    pub id: i64,
+    pub title: String,
+    pub subject: String,
+    pub knowledge_graph_id: uuid::Uuid
 }
