@@ -15,8 +15,8 @@ pub struct Topic {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[diesel(deserialize_as = i64)]
     pub id: Option<i64>,
-    pub subject: String,
-    pub content: serde_json::Value
+    pub content: serde_json::Value,
+    pub description: String
 }
 
 impl Topic {
@@ -25,7 +25,7 @@ impl Topic {
             .values(self)
             .on_conflict(topics::id)
             .do_update()
-            .set((topics::content.eq(self.content.clone()), topics::title.eq(self.title.clone()), topics::subject.eq(self.subject.clone())))
+            .set((topics::content.eq(self.content.clone()), topics::title.eq(self.title.clone()), topics::description.eq(self.description.clone())))
             .get_result(conn)
             .await?)
     }
@@ -43,6 +43,6 @@ impl Topic {
 pub struct PreviewTopic {
     pub id: i64,
     pub title: String,
-    pub subject: String,
+    pub description: String,
     pub knowledge_graph_id: uuid::Uuid
 }

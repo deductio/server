@@ -9,10 +9,18 @@ use rocket_db_pools::Connection;
 use crate::model::{Db, User, Topic};
 use crate::schema::*;
  
-#[derive(Queryable, Insertable, Identifiable, Associations)]
+#[derive(Queryable, Identifiable, Associations)]
 #[diesel(table_name = learning_maps, belongs_to(User, foreign_key = user_id))]
 pub struct LearningMap {
     pub id: i64,
+    pub user_id: i64,
+    pub title: String,
+    pub creation_time: chrono::NaiveDateTime
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = learning_maps)]
+pub struct LearningMapInsertion {
     pub user_id: i64,
     pub title: String
 }

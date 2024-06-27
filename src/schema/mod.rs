@@ -1,6 +1,3 @@
-// @generated automatically by Diesel CLI.
-
-
 diesel::table! {
     extensions (source, destination) {
         source -> Uuid,
@@ -35,6 +32,7 @@ diesel::table! {
         id -> Int8,
         user_id -> Int8,
         title -> Text,
+        creation_time -> Timestamp,
     }
 }
 
@@ -108,8 +106,8 @@ diesel::table! {
         knowledge_graph_id -> Uuid,
         title -> Text,
         id -> Int8,
-        subject -> Text,
         content -> Jsonb,
+        description -> Text,
     }
 }
 
@@ -117,6 +115,7 @@ diesel::table! {
     user_objective_progress (user_id, objective_id) {
         user_id -> Int8,
         objective_id -> Int8,
+        objective_time -> Timestamp,
     }
 }
 
