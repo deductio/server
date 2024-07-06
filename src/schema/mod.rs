@@ -1,3 +1,4 @@
+// @generated automatically by Diesel CLI.
 diesel::table! {
     extensions (source, destination) {
         source -> Uuid,
@@ -17,6 +18,7 @@ diesel::table! {
         last_modified -> Date,
         tsv_name_desc -> Tsvector,
         like_count -> Int4,
+        url_name -> Nullable<Text>,
     }
 }
 

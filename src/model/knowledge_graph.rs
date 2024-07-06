@@ -70,7 +70,7 @@ impl KnowledgeGraph {
         Ok(knowledge_graphs::table
             .filter(
                 knowledge_graphs::author.eq(user.id)
-                .and(knowledge_graphs::name.eq(title))
+                .and(knowledge_graphs::url_name.eq(title))
                 )
             .select(KnowledgeGraph::as_select())
             .first::<KnowledgeGraph>(conn)

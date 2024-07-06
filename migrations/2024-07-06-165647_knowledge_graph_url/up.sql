@@ -1,0 +1,1 @@
+ALTER TABLE knowledge_graphs ADD COLUMN url_name TEXT GENERATED ALWAYS AS (LOWER(REGEXP_REPLACE(name, '[\W_]+', '-', 'g'))) STORED;
